@@ -1,6 +1,4 @@
 from functools import reduce
-
-
 import SimpleITK as sitk
 import sys
 import os
@@ -20,28 +18,23 @@ if len ( sys.argv ) < 4:
 
 pixelType = sitk.sitkFloat32
 
-fixed = sitk.ReadImage(sys.argv[1], sitk.sitkVectorFloat32)
-#fixed = sitk.Normalize(fixed)
-#fixed = sitk.DiscreteGaussian(fixed, 2.0)
+#fixed = sitk.ReadImage(sys.argv[1], sitk.sitkVectorFloat32)
+fixed = sitk.ReadImage(sys.argv[1], sitk.sitkFloat32)
+fixed = sitk.Normalize(fixed)
+fixed = sitk.DiscreteGaussian(fixed, 2.0)
 
-#we want to make sure that these ima
-
-print(fixed.GetDimension())
-
-
-print(fixed.GetNumberOfComponentsPerPixel())
-print(fixed.GetPixel(0,0))
+#print(fixed.GetDimension())
+#print(fixed.GetNumberOfComponentsPerPixel())
+#print(fixed.GetPixel(0,0))
 size=fixed.GetSize()
-
-count=0
-for i in range(size[0]):
-    for j in range(size[1]):
-        if (fixed.GetPixel(i,j)!=(0,0,0,0)):
+#count=0
+#for i in range(size[0]):
+#    for j in range(size[1]):
+#        if (fixed.GetPixel(i,j)!=(0,0,0,0)):
             #print(fixed.GetPixel(i,j))
-            count+=1
-            if(count%100000==0):print(fixed.GetPixel(i,j))
-
-print("non black "+str(count)+"/"+str(size[0]*size[1])+" which is a percentage of "+str(100.*count/size[0]*size[1]))
+#            count+=1
+#            if(count%100000==0):print(fixed.GetPixel(i,j))
+#print("non black "+str(count)+"/"+str(size[0]*size[1])+" which is a percentage of "+str(100.*count/(size[0]*size[1])))
 
 moving = sitk.ReadImage(sys.argv[2], sitk.sitkFloat32)
 moving = sitk.Normalize(moving)

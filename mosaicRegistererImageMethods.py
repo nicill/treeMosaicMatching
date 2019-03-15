@@ -58,10 +58,14 @@ def collectImages(nameFixed,nameMoving,mode):
         return fixed,moving
 
 def registerImages(fixed,moving,mode):
+
     if(mode==0): transform=registerImagesRigid(fixed,moving)
     elif(mode==1): transform=registerImagesAffine(fixed,moving)
-    elif(mode==2): transform=registerImagesDemons(fixed,moving)
-    elif(mode==3): transform=registerImagesBsplines(fixed,moving)
+    elif(mode==2): transform=registerImagesDemons(fixed,moving,0)
+    elif(mode==3): transform=registerImagesDemons(fixed,moving,1)
+    elif(mode==4): transform=registerImagesDemons(fixed,moving,2)
+    elif(mode==5): transform=registerImagesBsplines(fixed,moving)
+    elif(mode==6): transform=registerImagesSyn(fixed,moving)
     else:
         print("Error in RegisterImages, unrecognized registration mode")
         sys.exit ( 1 )
@@ -163,14 +167,9 @@ def registerImagesAffine(fixed,moving):
         print("Error in RegisterImages, unrecognized optimizer")
         sys.exit ( 1 )
 
-    tx = sitk.CenteredTransformInitializer(fixed, moving, sitk.Similarity2DTransform())
+    tx = sitk.CenteredTransformInitializer(fixed, moving, sitk.AffineTransform(2))
 
-    affine=sitk.AffineTransform(tx)
-    #affine.SetMatrix(tx.GetMatrix())
-    #affine.SetTranslation(tx.GetTranslation())
-    #affine.SetCenter(tx.GetCenter())
-
-    R.SetInitialTransform(affine)
+    R.SetInitialTransform(tx)
 
     #interpolation usually linear
     R.SetInterpolator(sitk.sitkLinear)
@@ -186,8 +185,7 @@ def registerImagesAffine(fixed,moving):
 
     return outTx
 
-
-def registerImagesDemons(fixedImage,movingImage):
+def registerImagesDemons(fixedImage,movingImage,demonsType):
 
     matcher = sitk.HistogramMatchingImageFilter()
     if ( fixedImage.GetPixelID() in ( sitk.sitkUInt8, sitk.sitkInt8 ) ):
@@ -200,7 +198,14 @@ def registerImagesDemons(fixedImage,movingImage):
 
     # The fast symmetric forces Demons Registration Filter
     # Note there is a whole family of Demons Registration algorithms included in SimpleITK
-    demons = sitk.FastSymmetricForcesDemonsRegistrationFilter()
+# Probably use these as diferent types!!!!!!
+    if(demonsType==0): demons = sitk.DemonsRegistrationFilter()
+    elif(demonsType==1): demons = sitk.DiffeomorphicDemonsRegistrationFilter()
+    elif(demonsType==2): demons = sitk.FastSymmetricForcesDemonsRegistrationFilter()
+    else:
+        print("Error in registerImagesDemons, unrecognized demons type")
+        sys.exit ( 1 )
+
     demons.SetNumberOfIterations(200)
     # Standard deviation for Gaussian smoothing of displacement field
     demons.SetStandardDeviations(1.0)
@@ -218,8 +223,7 @@ def registerImagesDemons(fixedImage,movingImage):
 def registerImagesBsplines(fixed,moving):
 
     transformDomainMeshSize=[2]*fixed.GetDimension()
-    tx = sitk.BSplineTransformInitializer(fixed,
-                                          transformDomainMeshSize )
+    tx = sitk.BSplineTransformInitializer(fixed,transformDomainMeshSize )
 
     print("Initial Number of Parameters: {0}".format(tx.GetNumberOfParameters()))
 
@@ -253,6 +257,51 @@ def registerImagesBsplines(fixed,moving):
 
     return outTx
 
+def registerImagesSyn(fixedImage,movingImage):
+
+    initialTx = sitk.CenteredTransformInitializer(fixed, moving, sitk.AffineTransform(fixed.GetDimension()))
+
+    R = sitk.ImageRegistrationMethod()
+
+    R.SetShrinkFactorsPerLevel([3,2,1])
+    R.SetSmoothingSigmasPerLevel([2,1,1])
+
+    R.SetMetricAsJointHistogramMutualInformation(20)
+    R.MetricUseFixedImageGradientFilterOff()
+
+    R.SetOptimizerAsGradientDescent(learningRate=1.0, numberOfIterations=100,estimateLearningRate = R.EachIteration)
+    R.SetOptimizerScalesFromPhysicalShift()
+
+    R.SetInitialTransform(initialTx,inPlace=True)
+
+    R.SetInterpolator(sitk.sitkLinear)
+
+#    R.AddCommand( sitk.sitkIterationEvent, lambda: command_iteration(R) )
+#    R.AddCommand( sitk.sitkMultiResolutionIterationEvent, lambda: command_multi_iteration(R) )
+
+    outTx = R.Execute(fixed, moving)
+
+    displacementField = sitk.Image(fixed.GetSize(), sitk.sitkVectorFloat64)
+    displacementField.CopyInformation(fixed)
+    displacementTx = sitk.DisplacementFieldTransform(displacementField)
+    del displacementField
+    displacementTx.SetSmoothingGaussianOnUpdate(varianceForUpdateField=0.0,varianceForTotalField=1.5)
+    R.SetMovingInitialTransform(outTx)
+    R.SetInitialTransform(displacementTx, inPlace=True)
+
+    R.SetMetricAsANTSNeighborhoodCorrelation(4)
+    R.MetricUseFixedImageGradientFilterOff()
+
+    R.SetShrinkFactorsPerLevel([3,2,1])
+    R.SetSmoothingSigmasPerLevel([2,1,1])
+
+    R.SetOptimizerScalesFromPhysicalShift()
+    R.SetOptimizerAsGradientDescent(learningRate=1,numberOfIterations=300,estimateLearningRate=R.EachIteration)
+
+    outTx.AddTransform( R.Execute(fixed, moving) )
+
+    return outTx
+
 def outputResults(fixed,moving,outTx,transformFile,outputImageFile):
 
     sitk.WriteTransform(outTx,  transformFile)
@@ -272,7 +321,7 @@ def outputResults(fixed,moving,outTx,transformFile,outputImageFile):
     writer.SetFileName(outputImageFile)
     writer.Execute(simg2)
 
-#registration modes: Rigid 0, affine 1, demons 2, bsplines 3
+#registration modes: Rigid 0, affine 1, classical demons 2, diffeomorphic demons 3, simmetryc demons 4, bsplines 5, syn6
 if __name__== '__main__':
 
     registrationMode = parameterCheck()

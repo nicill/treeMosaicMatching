@@ -40,7 +40,6 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
     print("number of keypoints "+str(len(keypoints1))+" "+str(len(keypoints2)))
 
     # Match features.
-    # CHeck also https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_feature2d/py_matcher/py_matcher.html
     matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
     matches = matcher.match(descriptors1, descriptors2, None)
 
@@ -54,8 +53,6 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
 
     print("number of goodmatches  "+str(numGoodMatches))
 
-
-    # Draw top matches
     imMatches = cv2.drawMatches(im1, keypoints1, im2, keypoints2, matches, None)
     if(matchesFile!="NO"): cv2.imwrite(matchesFile, imMatches)
 

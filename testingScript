@@ -1,0 +1,158 @@
+# /usr/bin/bash
+
+
+fixed=$1
+moving=$2
+whatToDo=$3
+prefix=$4
+methodsJumbled=$5
+criteriaJumbled=$6
+
+existingMethods="bef rig aff dem0 dem1 dem2 bsp syn orb kaz bri "
+existingCriteria="jmhi mmi msq cc orb kaz bri"
+
+
+#indicate methods to be used 
+methodString=""
+for m in $existingMethods
+do
+	if [[ $methodsJumbled == *$m* ]]; then
+		methodString=$methodString" "$m
+	fi
+done
+
+if [[ $methodsJumbled == *"all"* ]];then
+  methodString=$existingMethods
+fi
+
+
+#indicate methods to be used
+criteriaString=""
+for c in $existingCriteria
+do
+	if [[ $criteriaJumbled == *$c* ]]; then
+		criteriaString=$criteriaString" "$c
+	fi
+done
+
+if [[ $criteriaJumbled == *"all"* ]];then
+  criteriaString=$existingCriteria
+fi
+
+# Codify the actions that the script will perform
+compute=0
+evaluate=0
+gatherResults=0
+shutdown=0
+if [[ $whatToDo == *"c"* ]]; then
+compute=1
+fi
+if [[ $whatToDo == *"e"* ]]; then
+evaluate=1
+fi
+if [[ $whatToDo == *"g"* ]]; then
+gatherResults=1
+fi
+if [[ $whatToDo == *"s"* ]]; then
+shutdown=1
+fi
+
+if [[ $compute = 1 ]];then
+	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++testing Script, Computing START, methods $methodString $criteriaString"
+
+
+	for method in $methodString 
+	do
+		if [[ $method = bef ]];then
+			#in this case, the output is just the input
+			cp $moving out"$prefix""$method"".tif"
+		elif [[ $method = rig ]] 
+		then
+			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 0
+		elif [[ $method = aff ]] 
+		then
+			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 1
+		elif [[ $method = dem0 ]] 
+		then
+			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 2
+		elif [[ $method = dem1 ]] 
+		then
+			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 3
+		elif [[ $method = dem2 ]] 
+		then
+			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 4
+		elif [[ $method = bsp ]] 
+		then
+			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 5
+		elif [[ $method = syn ]] 
+		then
+			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 6
+		fi
+
+
+	done
+
+
+fi
+
+#"jmhi mmi msq cc orb kaz bri"
+
+if [[ $evaluate = 1 ]];then
+echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Master Script, Evaluate START"
+
+
+	for method in $methodString 
+	do
+
+		for criterion in $criteriaString 
+		do
+			echo "evaluating Criterion $criterion for method $method"
+			if [[ $criterion = jmhi ]];then
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 0  >> result"$prefix""$method".txt
+			elif [[ $criterion = mmi ]] 
+			then
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 1 >> result"$prefix""$method".txt
+		
+		elif [[ $criterion = msq ]] 
+			then
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 2 >> result"$prefix""$method".txt
+			elif [[ $criterion = cc ]] 
+			then
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 3 >> result"$prefix""$method".txt
+			fi
+
+		done
+
+	done
+
+
+fi
+
+
+if [[ $gatherResults = 1 ]];then
+#cd $dataDir
+echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Master Script, GatherResults START"
+
+for criterion in $criteriaString 
+do
+	echo "Starting gathering results for criterion $criterion within $criteriaString"
+	# First, list all patients 
+	echo "$criterion $methodString"> $prefix"criterion"$criterion".txt"
+
+	#now, for each method, iterate over all results
+	for method in $methodString 
+	do
+		echo "Starting Method $method within $methodString"
+
+		#echo -n "$method " >> $prefix"criterion"$criterion".txt"
+ 		cat result"$prefix""$method".txt >> $prefix"criterion"$criterion".txt"
+
+		echo "" >> $prefix"criterion"$criterion".txt"
+	done
+
+	# copy to dropbox
+	#cp $outputFilePrefix"criterion"$criterion".txt" $remoteResultsDir/"Iterations"$iterations$methodsJumbled"criterion"$criterion".txt" 
+
+done
+
+fi

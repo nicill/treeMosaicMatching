@@ -39,39 +39,24 @@ def collectImages(nameFixed,nameMoving,mode):
 
 def computeMetric(fixed,moving,mode):
 
+    # First, set up "phony" registration
     R = sitk.ImageRegistrationMethod()
-    # First, choose metric
+    R.SetOptimizerAsGradientDescentLineSearch(learningRate=1.0,numberOfIterations=1,convergenceMinimumValue=1e-5,convergenceWindowSize=5)
+    R.SetInitialTransform(sitk.Transform(2,sitk.sitkIdentity)) # Transformation deliberately not using any initializer
+    R.SetInterpolator(sitk.sitkLinear)
 
-    if(mode==0): metric="jhmi"
-    elif(mode==1): metric="mmi"
-    elif(mode==2): metric="msq"
-    elif(mode==3): metric="cc"
+    #second, choose metric
+    if(mode==0): R.SetMetricAsJointHistogramMutualInformation()
+    elif(mode==1): R.SetMetricAsMattesMutualInformation(numberOfHistogramBins = 50)
+    elif(mode==2): R.SetMetricAsMeanSquares()
+    elif(mode==3): R.SetMetricAsCorrelation()
     else:
         print("Error in computeMetric, unrecognized metric")
         sys.exit ( 1 )
 
-    if (metric=="jhmi"):  R.SetMetricAsJointHistogramMutualInformation()
-    elif (metric=="mmi"): R.SetMetricAsMattesMutualInformation(numberOfHistogramBins = 50)
-    elif (metric=="msq"): R.SetMetricAsMeanSquares()
-    elif (metric=="cc"): R.SetMetricAsCorrelation()
-    else:
-        print("Error in RegisterImages, unrecognizes metric")
-        sys.exit ( 1 )
+    #third, get the metric value
+    print(R.MetricEvaluate(fixed, moving),end=" ")
 
-    R.SetOptimizerAsGradientDescentLineSearch(learningRate=1.0,numberOfIterations=1,convergenceMinimumValue=1e-5,convergenceWindowSize=5)
-    tx = sitk.CenteredTransformInitializer(fixed, moving, sitk.AffineTransform(2))
-    R.SetInitialTransform(tx)
-
-    #interpolation usually linear
-    R.SetInterpolator(sitk.sitkLinear)
-
-    print(R.MetricEvaluate(fixed, moving))
-
-    #outTx = R.Execute(fixed, moving)
-
-    #print(" Metric value: {0}".format(R.GetMetricValue()))
-
-    #return outTx
 
 #registration modes: Rigid 0, affine 1, classical demons 2, diffeomorphic demons 3, simmetryc demons 4, bsplines 5, syn6
 if __name__== '__main__':

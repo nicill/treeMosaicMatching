@@ -55,7 +55,7 @@ def computeMetric(fixed,moving,mode):
         sys.exit ( 1 )
 
     #third, get the metric value
-    print(R.MetricEvaluate(fixed, moving),end=" ")
+    print(str(R.MetricEvaluate(fixed, moving)),end=" ")
 
 
 #registration modes: Rigid 0, affine 1, classical demons 2, diffeomorphic demons 3, simmetryc demons 4, bsplines 5, syn6

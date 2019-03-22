@@ -2,14 +2,13 @@ import cv2
 import numpy as np
 import sys
 
-
 MAX_FEATURES = 100000
 GOOD_MATCH_PERCENT = 0.0015
 
-#0 ORB 1 AKAZE
+#0 ORB 1 AKAZE 2 BRISK
 def alignImages(im1, im2,mode,matchesFile="NO"):
 
-    print(matchesFile)
+    #print(matchesFile)
 
     if (mode==0):#Orb matching
         # Convert images to grayscale
@@ -93,13 +92,17 @@ if __name__ == '__main__':
   # Registered image will be resotred in imReg.
   # The estimated homography will be stored in h.
   #imReg, h = alignImagesORB(im, imReference)
-  if(len(sys.argv)>5): imReg, h = alignImages(im, imReference,int(sys.argv[3]),sys.argv[5])
-  else: alignImages(im, imReference,int(sys.argv[3]))
+  if(len(sys.argv)>6): imReg, h = alignImages(im, imReference,int(sys.argv[3]),sys.argv[6])
+  else: imReg, h = alignImages(im, imReference,int(sys.argv[3]))
 
   # Write aligned image to disk.
-  outFilename = sys.argv[4]
+  outFilename = sys.argv[5]
   print("Saving aligned image : ", outFilename);
   cv2.imwrite(outFilename, imReg)
 
   # Print estimated homography
   print("Estimated homography : \n",  h)
+  transformFileName=sys.argv[4]
+  f = open(transformFileName, "w")
+  f.write(str(h))
+  f.close()

@@ -54,13 +54,13 @@ if __name__ == '__main__':
 
     # Read reference image
     refFilename = sys.argv[1]
-    print("Reading reference image : ", refFilename)
+    #print("Reading image1 : ", refFilename)
     imReference = cv2.imread(refFilename, cv2.IMREAD_COLOR)
 
     # Read image to be aligned
     imFilename = sys.argv[2]
-    print("Reading image to align : ", imFilename);
+    #print("Reading image2 : ", imFilename);
     im = cv2.imread(imFilename, cv2.IMREAD_COLOR)
 
     #do something!
-    print(computeSimilarity(imReference,im,int(sys.argv[3])))
+    print(computeSimilarity(imReference,im,int(sys.argv[3])),end=" ")

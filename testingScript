@@ -9,8 +9,12 @@ methodsJumbled=$5
 criteriaJumbled=$6
 
 existingMethods="bef rig aff dem0 dem1 dem2 bsp syn orb kaz bri "
-existingCriteria="jmhi mmi msq cc orb kaz bri"
+#existingCriteria="jmhi mmi msq cc orb kaz bri"
+existingCriteria="jmhi mmi msq cc kaz"
 
+currentDir=$(pwd)
+partialFileDir=$currentDir/"tempOutput/"
+mkdir $partialFileDir
 
 #indicate methods to be used 
 methodString=""
@@ -61,8 +65,18 @@ if [[ $compute = 1 ]];then
 	echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++testing Script, Computing START, methods $methodString $criteriaString"
 
 
+	#in any case, do rigid registration to initialize
+	python mosaicRegistererImageMethods.py $fixed $moving "Initialtranf$prefix"".txt" coarseRegOutput"$prefix"".tif" 0
+
+	# now set the output of the rigid registration as the new moving image.
+	moving=coarseRegOutput"$prefix"".tif"
+
+
 	for method in $methodString 
 	do
+		START=$(date +%s)
+
+
 		if [[ $method = bef ]];then
 			#in this case, the output is just the input
 			cp $moving out"$prefix""$method"".tif"
@@ -71,6 +85,7 @@ if [[ $compute = 1 ]];then
 			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 0
 		elif [[ $method = aff ]] 
 		then
+			#cp coarseRegOutput"$prefix"".tif" out"$prefix""$method"".tif"
 			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 1
 		elif [[ $method = dem0 ]] 
 		then
@@ -87,72 +102,106 @@ if [[ $compute = 1 ]];then
 		elif [[ $method = syn ]] 
 		then
 			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 6
+		elif [[ $method = orb ]] #not otputting matches image (parameter5 in featureDescriptorMatching.py
+		then
+			python featureDescriptorMatching.py $fixed $moving 0 "tranf$prefix"".txt" out"$prefix""$method"".tif" 
+		elif [[ $method = kaz ]] #not otputting matches image (parameter5 in featureDescriptorMatching.py
+		then
+			python featureDescriptorMatching.py $fixed $moving 1 "tranf$prefix"".txt" out"$prefix""$method"".tif" 
+		elif [[ $method = bri ]] #not otputting matches image (parameter5 in featureDescriptorMatching.py
+		then
+			python featureDescriptorMatching.py $fixed $moving 2 "tranf$prefix"".txt" out"$prefix""$method"".tif" 
 		fi
 
+		END=$(date +%s)
+		DIFF=$(( $END - $START ))
 
+		echo "$method finished in $DIFF seconds"
 	done
-
-
 fi
 
 #"jmhi mmi msq cc orb kaz bri"
 
 if [[ $evaluate = 1 ]];then
-echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Master Script, Evaluate START"
-
-
+echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Testing Script, Evaluate START"
 	for method in $methodString 
 	do
 
 		for criterion in $criteriaString 
 		do
+
+			START=$(date +%s)
+	
+			rm $partialFileDir"result"$prefix$method$criterion".txt"
 			echo "evaluating Criterion $criterion for method $method"
 			if [[ $criterion = jmhi ]];then
-				python imageMetrics.py $fixed out"$prefix""$method"".tif" 0  >> result"$prefix""$method".txt
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 0  >> $partialFileDir"result"$prefix$method$criterion".txt"
 			elif [[ $criterion = mmi ]] 
 			then
-				python imageMetrics.py $fixed out"$prefix""$method"".tif" 1 >> result"$prefix""$method".txt
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 1 >> $partialFileDir"result"$prefix$method$criterion".txt"
 		
-		elif [[ $criterion = msq ]] 
+			elif [[ $criterion = msq ]] 
 			then
-				python imageMetrics.py $fixed out"$prefix""$method"".tif" 2 >> result"$prefix""$method".txt
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 2 >> $partialFileDir"result"$prefix$method$criterion".txt"
 			elif [[ $criterion = cc ]] 
 			then
-				python imageMetrics.py $fixed out"$prefix""$method"".tif" 3 >> result"$prefix""$method".txt
+				python imageMetrics.py $fixed out"$prefix""$method"".tif" 3 >> $partialFileDir"result"$prefix$method$criterion".txt"
+			elif [[ $criterion = orb ]] 
+			then
+				python featureMatcherDistance.py $fixed out"$prefix""$method"".tif" 0 >> $partialFileDir"result"$prefix$method$criterion".txt"
+			elif [[ $criterion = kaz ]] 
+			then
+				python featureMatcherDistance.py $fixed out"$prefix""$method"".tif" 1 >> $partialFileDir"result"$prefix$method$criterion".txt"
+			elif [[ $criterion = bri ]] 
+			then
+				python featureMatcherDistance.py $fixed out"$prefix""$method"".tif" 2 >> $partialFileDir"result"$prefix$method$criterion".txt"
 			fi
+			END=$(date +%s)
+			DIFF=$(( $END - $START ))
+
+			echo "$criterion finished in $DIFF seconds"
 
 		done
 
 	done
-
-
 fi
 
 
 if [[ $gatherResults = 1 ]];then
 #cd $dataDir
-echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Master Script, GatherResults START"
+echo "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Testing Script, GatherResults START"
+rm "summary"$prefix".txt"
+echo "Criterion $methodString"> "summary"$prefix".txt"
 
 for criterion in $criteriaString 
 do
 	echo "Starting gathering results for criterion $criterion within $criteriaString"
 	# First, list all patients 
-	echo "$criterion $methodString"> $prefix"criterion"$criterion".txt"
+	#echo "$methodString"> $prefix"criterion"$criterion".txt"
 
 	#now, for each method, iterate over all results
+	echo -n "$criterion " >> $prefix"criterion"$criterion".txt"
 	for method in $methodString 
 	do
 		echo "Starting Method $method within $methodString"
 
-		#echo -n "$method " >> $prefix"criterion"$criterion".txt"
- 		cat result"$prefix""$method".txt >> $prefix"criterion"$criterion".txt"
+ 		cat $partialFileDir"result"$prefix$method$criterion".txt" >> $prefix"criterion"$criterion".txt"
 
-		echo "" >> $prefix"criterion"$criterion".txt"
 	done
+		echo "" >> $prefix"criterion"$criterion".txt"
 
-	# copy to dropbox
-	#cp $outputFilePrefix"criterion"$criterion".txt" $remoteResultsDir/"Iterations"$iterations$methodsJumbled"criterion"$criterion".txt" 
+	cat $prefix"criterion"$criterion".txt" >> "summary"$prefix".txt"
+	rm $prefix"criterion"$criterion".txt"	
 
 done
 
 fi
+
+
+
+
+
+
+	# copy to dropbox
+	#cp $outputFilePrefix"criterion"$criterion".txt" $remoteResultsDir/"Iterations"$iterations$methodsJumbled"criterion"$criterion".txt" 
+

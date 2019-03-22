@@ -2,8 +2,9 @@ import cv2
 import numpy as np
 import sys
 
+#these two parameters need to be adjusted for the descriptors
 MAX_FEATURES = 100000
-GOOD_MATCH_PERCENT = 0.0015
+GOOD_MATCH_PERCENT = 0.05
 
 #0 ORB 1 AKAZE 2 BRISK
 def alignImages(im1, im2,mode,matchesFile="NO"):
@@ -11,21 +12,28 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
     #print(matchesFile)
 
     if (mode==0):#Orb matching
+        MAX_FEATURES = 100000
+        GOOD_MATCH_PERCENT = 0.05
+
         # Convert images to grayscale
         im1Gray = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
         im2Gray = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
 
         # Detect ORB features and compute descriptors.
-        orb = cv2.ORB_create(MAX_FEATURES)
+        orb = cv2.ORB_create(MAX_FEATURES,1.1)
         keypoints1, descriptors1 = orb.detectAndCompute(im1Gray, None)
         keypoints2, descriptors2 = orb.detectAndCompute(im2Gray, None)
     elif (mode==1):#AKAZE matching
+        MAX_FEATURES = 100000
+        GOOD_MATCH_PERCENT = 0.0015
 
         akaze = cv2.AKAZE_create()
         keypoints1, descriptors1 = akaze.detectAndCompute(im1, None)
         keypoints2, descriptors2 = akaze.detectAndCompute(im2, None)
 
     elif (mode==2):#Brisk matching
+        MAX_FEATURES = 100000
+        GOOD_MATCH_PERCENT = 0.15
 
         brisk = cv2.BRISK_create()
         keypoints1, descriptors1 = brisk.detectAndCompute(im1, None)
@@ -64,16 +72,16 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
         points2[i, :] = keypoints2[match.trainIdx].pt
 
     # Find homography
-    # h, mask = cv2.findHomography(points1, points2, cv2.RANSAC)
+    h, mask = cv2.findHomography(points1, points2, cv2.RANSAC)
     # Use homography
     height, width, channels = im2.shape
-    #im1Reg = cv2.warpPerspective(im1, h, (width, height))
+    im1Reg = cv2.warpPerspective(im1, h, (width, height))
+    return im1Reg, h
 
     #estimate rigid SetTransform
-    affTransf,inliers=cv2.estimateAffine2D(points1, points2)
-    im1Reg=cv2.warpAffine(im1, affTransf, (width, height))
-    return im1Reg, affTransf
-    #return im1Reg, h
+    #affTransf,inliers=cv2.estimateAffine2D(points1, points2)
+    #im1Reg=cv2.warpAffine(im1, affTransf, (width, height))
+    #return im1Reg, affTransf
 
 
 if __name__ == '__main__':

@@ -9,8 +9,8 @@ methodsJumbled=$5
 criteriaJumbled=$6
 
 existingMethods="bef rig aff dem0 dem1 dem2 bsp syn orb kaz bri "
-#existingCriteria="jmhi mmi msq cc orb kaz bri"
-existingCriteria="jmhi mmi msq cc kaz"
+existingCriteria="jmhi mmi msq cc orb kaz bri"
+#existingCriteria="jmhi mmi msq cc kaz"
 
 currentDir=$(pwd)
 partialFileDir=$currentDir/"tempOutput/"
@@ -69,6 +69,7 @@ if [[ $compute = 1 ]];then
 	python mosaicRegistererImageMethods.py $fixed $moving "Initialtranf$prefix"".txt" coarseRegOutput"$prefix"".tif" 0
 
 	# now set the output of the rigid registration as the new moving image.
+	movingOld=$moving
 	moving=coarseRegOutput"$prefix"".tif"
 
 
@@ -79,7 +80,7 @@ if [[ $compute = 1 ]];then
 
 		if [[ $method = bef ]];then
 			#in this case, the output is just the input
-			cp $moving out"$prefix""$method"".tif"
+			cp $movingOld out"$prefix""$method"".tif"
 		elif [[ $method = rig ]] 
 		then
 			python mosaicRegistererImageMethods.py $fixed $moving "tranf$prefix"".txt" out"$prefix""$method"".tif" 0

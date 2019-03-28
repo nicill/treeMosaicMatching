@@ -45,18 +45,18 @@ def computeMetric(fixed,moving,mode):
     R.SetInitialTransform(sitk.Transform(2,sitk.sitkIdentity)) # Transformation deliberately not using any initializer
     R.SetInterpolator(sitk.sitkLinear)
 
-    #second, choose metric
-    if(mode==0): R.SetMetricAsJointHistogramMutualInformation()
-    elif(mode==1): R.SetMetricAsMattesMutualInformation(numberOfHistogramBins = 50)
-    elif(mode==2): R.SetMetricAsMeanSquares()
+    #second, choose metric , options http://insightsoftwareconsortium.github.io/SimpleITK-Notebooks/Python_html/60_Registration_Introduction.html
+    if(mode==0): R.SetMetricAsJointHistogramMutualInformation() #https://itk.org/Doxygen/html/classitk_1_1JointHistogramMutualInformationImageToImageMetricv4.html
+    elif(mode==1): R.SetMetricAsMattesMutualInformation(numberOfHistogramBins = 264)
+    elif(mode==2): R.SetMetricAsMeanSquares() #lower is better
     elif(mode==3): R.SetMetricAsCorrelation()
     else:
         print("Error in computeMetric, unrecognized metric")
         sys.exit ( 1 )
 
     #third, get the metric value
-    print(str(R.MetricEvaluate(fixed, moving)),end=" ")
-
+    if(mode==0 or mode==1 or mode==3): print(str(-R.MetricEvaluate(fixed, moving)),end=" ")
+    else : print(str(R.MetricEvaluate(fixed, moving)),end=" ")
 
 #registration modes: Rigid 0, affine 1, classical demons 2, diffeomorphic demons 3, simmetryc demons 4, bsplines 5, syn6
 if __name__== '__main__':

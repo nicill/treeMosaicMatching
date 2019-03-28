@@ -13,7 +13,7 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
 
     if (mode==0):#Orb matching
         MAX_FEATURES = 100000
-        GOOD_MATCH_PERCENT = 0.05
+        #GOOD_MATCH_PERCENT = 0.05
 
         # Convert images to grayscale
         im1Gray = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
@@ -25,7 +25,7 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
         keypoints2, descriptors2 = orb.detectAndCompute(im2Gray, None)
     elif (mode==1):#AKAZE matching
         MAX_FEATURES = 100000
-        GOOD_MATCH_PERCENT = 0.0015
+        #GOOD_MATCH_PERCENT = 0.0015
 
         akaze = cv2.AKAZE_create()
         keypoints1, descriptors1 = akaze.detectAndCompute(im1, None)
@@ -33,7 +33,7 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
 
     elif (mode==2):#Brisk matching
         MAX_FEATURES = 100000
-        GOOD_MATCH_PERCENT = 0.15
+        #GOOD_MATCH_PERCENT = 0.15
 
         brisk = cv2.BRISK_create()
         keypoints1, descriptors1 = brisk.detectAndCompute(im1, None)
@@ -46,30 +46,37 @@ def alignImages(im1, im2,mode,matchesFile="NO"):
 
     print("number of keypoints "+str(len(keypoints1))+" "+str(len(keypoints2)))
 
-    # Match features.
     matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
-    matches = matcher.match(descriptors1, descriptors2, None)
 
-    print("number of matches "+str(len(matches)))
+    # choose according to lowe7s Threshold
+    matches = matcher.knnMatch(descriptors1,descriptors2,2)
+
+    good = []
+    for m,n in matches:
+        if m.distance < 0.7*n.distance:
+            good.append([m])
+
+
+    # Match features.no threshold
+    #matches = matcher.match(descriptors1, descriptors2, None)
+    #print("number of matches "+str(len(matches)))
     # Sort matches by score
-    matches.sort(key=lambda x: x.distance, reverse=False)
-
+    #matches.sort(key=lambda x: x.distance, reverse=False)
     # Remove not so good matches
-    numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
-    matches = matches[:numGoodMatches]
+    #numGoodMatches = int(len(matches) * GOOD_MATCH_PERCENT)
+    #matches = matches[:numGoodMatches]
+    #print("number of goodmatches  "+str(numGoodMatches))
 
-    print("number of goodmatches  "+str(numGoodMatches))
-
-    imMatches = cv2.drawMatches(im1, keypoints1, im2, keypoints2, matches, None)
+    imMatches = cv2.drawMatchesKnn(im1, keypoints1, im2, keypoints2, good, None)
     if(matchesFile!="NO"): cv2.imwrite(matchesFile, imMatches)
 
     # Extract location of good matches
-    points1 = np.zeros((len(matches), 2), dtype=np.float32)
-    points2 = np.zeros((len(matches), 2), dtype=np.float32)
+    points1 = np.zeros((len(good), 2), dtype=np.float32)
+    points2 = np.zeros((len(good), 2), dtype=np.float32)
 
-    for i, match in enumerate(matches):
-        points1[i, :] = keypoints1[match.queryIdx].pt
-        points2[i, :] = keypoints2[match.trainIdx].pt
+    for i, match in enumerate(good):
+        points1[i, :] = keypoints1[match[0].queryIdx].pt
+        points2[i, :] = keypoints2[match[0].trainIdx].pt
 
     # Find homography
     h, mask = cv2.findHomography(points1, points2, cv2.RANSAC)

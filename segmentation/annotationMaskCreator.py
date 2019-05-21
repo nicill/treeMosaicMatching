@@ -3,9 +3,37 @@ import numpy as np
 import sys
 import imagePatcherAnnotator as impa
 
+#def addNewMaskLayer(newMask,mainMask):
+#    shapeX=mainMask.shape[0]
+#    shapeY=mainMask.shape[1]
+#    for i in range(shapeX):
+#        if i%100==0:print(str(i)+"/"+str(shapeX))
+#        for j in range(shapeY):
+            # Unknown + background turns to unknown, label with unknown o background is propagated
+#            if newMask[i][j]==0 and mainMask[i][j]==1:mainMask[i][j]=0
+#            elif newMask[i][j]>1 and (mainMask[i][j]==0 or mainMask[i][j]==1):mainMask[i][j]=newMask[i][j]
+
+def addNewMaskLayer(newMask,mainMask):
+    aux1=newMask.copy()
+    aux2=mainMask.copy()
+
+    aux1[newMask==1]=2# now we only have unknown as zero and other things at least 2
+    aux1[mainMask==1]+=1 #now 1 contains the pixels that where 0 in new and 1 in main
+    mainMask[aux1==1]=0 # unknown + background is unknown
+
+    aux1=newMask.copy()
+    aux1[aux2>1]=0 #erase everything not touching mainmask unknown or background
+    aux1[aux1==1]=0 #erase also background
+    mainMask=mainMask|aux1 # add the labels
+
+    return mainMask
+
 def main():
     # Take a mosaic, a csv file containing predictions for its labels and the patch size used for the annotations
     # 1) Create trentative automatic mask images (all affected patches are black)
+    # 2) Find a clear background and clear foreground part, find unknown part, find the connected components of the foregroung
+    # 3) Accumulate labels for all cathegories, carefull to keep the unkwnon updated as it is where the segmentation can grow
+    # 4) run watershed
 
     #hardcoded number of layers and names
     layerNames=["river","decidious","uncovered","evergreen","manmade"]
@@ -70,10 +98,7 @@ def main():
             xJump=patchNumber//numStepsY
             yJump=patchNumber%numStepsY
 
-            #print("patch "+str(patchNumber)+" will go to ("+str(xJump)+","+str(yJump)+")")
             #now find the proper layer (once in the im)
-            #print("searching for layer with "+pref+" "+x)
-            #print("and will modify the layer "+str(imageDict[pref])+" "+str(layerDict[x]))
             currentLayerIm=layerList[imageDict[pref]][layerDict[x]]
             impa.paintImagePatch(currentLayerIm,xJump*patch_size,yJump*patch_size,patch_size,255)
 
@@ -88,9 +113,12 @@ def main():
     for pref in imagePrefixes:
         layerList.append([])
         maskImage=np.zeros((shapeX,shapeY),dtype=np.uint8)
+        firstLabel=0 #counter so labels from different masks have different labels
         for x in range(len(layerNames)):
-            if layerNames[x] in ["decidious","evergreen"]:
+            if layerNames[x] in ["river","decidious","uncovered","evergreen"]:
+                print("starting "+layerNames[x])
                 #merge these mask with the ones before
+                cv2.imwrite(str(x)+"before.jpg",layerList[i][x])
 
                 # also, try to refine the segmenation
                 # noise removal
@@ -98,45 +126,52 @@ def main():
                 opening = cv2.morphologyEx(layerList[i][x],cv2.MORPH_OPEN,kernel, iterations = 2)
 
                 # sure background area
-                sure_bg = cv2.dilate(opening,kernel,iterations=3)
+                sure_bg = cv2.dilate(opening,kernel,iterations=100)
                 #cv2.imwrite(imageDir+pref+"ErodedLayer"+str(x)+".jpg",opening)
 
                 # Finding sure foreground area
-                #dist_transform = cv2.distanceTransform(opening,cv2.DIST_L2,5)
-                #ret, sure_fg = cv2.threshold(dist_transform,0.7*dist_transform.max(),255,0)
-                sure_fg = cv2.erode(layerList[i][x],kernel,iterations=300)
+                dist_transform = cv2.distanceTransform(opening,cv2.DIST_L2,5)
+                ret, sure_fg = cv2.threshold(dist_transform,0.2*dist_transform.max(),255,0)
+                #iterations=350
+                #if layerNames[x]=="evergreen": iterations =200
+                #sure_fg = cv2.erode(layerList[i][x],kernel,iterations=iterations)
                 #cv2.imwrite(imageDir+pref+"dilatedLayer"+str(x)+".jpg",sure_fg)
-                cv2.imwrite(str(x)+"sf.jpg",sure_fg)
-                cv2.imwrite(str(x)+"sb.jpg",sure_bg)
-
 
                 # Finding unknown region
                 sure_fg = np.uint8(sure_fg)
                 unknown = cv2.subtract(sure_bg,sure_fg)
 
-                maskImage=maskImage|sure_fg
+                cv2.imwrite(str(x)+"sf.jpg",sure_fg)
+                cv2.imwrite(str(x)+"sb.jpg",sure_bg)
+                cv2.imwrite(str(x)+"unk.jpg",unknown)
+
+                # Marker labelling
+                ret, markers = cv2.connectedComponents(sure_fg)
+
+                # Add one to all labels so that sure background is not 0, but 1, also add firstLabel so label numbers are different
+                markers = markers+firstLabel+1
+
+                #remark sure background as 1
+                markers[markers==(firstLabel+1)]=1
+
+                firstLabel+=ret
+                # Now, mark the region of unknown with zero
+                markers[unknown==255] = 0
+
+                maskImage=addNewMaskLayer(markers,maskImage)
+
                 #cv2.imwrite(imageDir+pref+"GeneratedLayer"+str(x)+".jpg",layerList[i][x])
-                cv2.imwrite(str(x)+"auauua.jpg",maskImage)
+                cv2.imwrite(str(x)+"auauua.jpg",cv2.applyColorMap(np.uint8(markers*50),cv2.COLORMAP_JET))
             else:
                 print("skypping layer "+layerNames[x])
 
-
-
-
-        # Marker labelling
-        ret, markers = cv2.connectedComponents(maskImage)
-
-        # Add one to all labels so that sure background is not 0, but 1
-        markers = markers+1
-
-        # Now, mark the region of unknown with zero
-        markers[unknown==255] = 0
+        cv2.imwrite("finalMask.jpg",cv2.applyColorMap(np.uint8(maskImage*50),cv2.COLORMAP_JET))
 
         print("starting watershed ")
-        markers = cv2.watershed(image,markers)
+        markers = cv2.watershed(image,maskImage)
         image[markers == -1] = [0,0,255]
 
-        cv2.imwrite("sambomba3.jpg",image)
+        cv2.imwrite("watershed.jpg",image)
 
         i+=1
 

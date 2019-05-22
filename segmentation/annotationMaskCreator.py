@@ -17,9 +17,15 @@ def addNewMaskLayer(newMask,mainMask):
     aux1=newMask.copy()
     aux2=mainMask.copy()
 
+    # First, the new unknown part touching background in the accumulated image is copied
+    # things that were previously known but are unknown to me stay known
     aux1[newMask==1]=2# now we only have unknown as zero and other things at least 2
     aux1[mainMask==1]+=1 #now 1 contains the pixels that where 0 in new and 1 in main
     mainMask[aux1==1]=0 # unknown + background is unknown
+
+    # now copy all the new labels
+
+    #should do newLabel +unknown is new label?
 
     aux1=newMask.copy()
     aux1[aux2>1]=0 #erase everything not touching mainmask unknown or background
@@ -112,13 +118,13 @@ def main():
 
     for pref in imagePrefixes:
         layerList.append([])
-        maskImage=np.zeros((shapeX,shapeY),dtype=np.uint8)
+        maskImage=np.ones((shapeX,shapeY),dtype=np.uint8)
         firstLabel=0 #counter so labels from different masks have different labels
         for x in range(len(layerNames)):
             if layerNames[x] in ["river","decidious","uncovered","evergreen"]:
                 print("starting "+layerNames[x])
                 #merge these mask with the ones before
-                cv2.imwrite(str(x)+"before.jpg",layerList[i][x])
+                #cv2.imwrite(str(x)+"before.jpg",layerList[i][x])
 
                 # also, try to refine the segmenation
                 # noise removal
@@ -141,9 +147,9 @@ def main():
                 sure_fg = np.uint8(sure_fg)
                 unknown = cv2.subtract(sure_bg,sure_fg)
 
-                cv2.imwrite(str(x)+"sf.jpg",sure_fg)
-                cv2.imwrite(str(x)+"sb.jpg",sure_bg)
-                cv2.imwrite(str(x)+"unk.jpg",unknown)
+                #cv2.imwrite(str(x)+"sf.jpg",sure_fg)
+                #cv2.imwrite(str(x)+"sb.jpg",sure_bg)
+                #cv2.imwrite(str(x)+"unk.jpg",unknown)
 
                 # Marker labelling
                 ret, markers = cv2.connectedComponents(sure_fg)
@@ -161,7 +167,8 @@ def main():
                 maskImage=addNewMaskLayer(markers,maskImage)
 
                 #cv2.imwrite(imageDir+pref+"GeneratedLayer"+str(x)+".jpg",layerList[i][x])
-                cv2.imwrite(str(x)+"auauua.jpg",cv2.applyColorMap(np.uint8(markers*50),cv2.COLORMAP_JET))
+                cv2.imwrite(str(x)+"layerMask.jpg",cv2.applyColorMap(np.uint8(markers*50),cv2.COLORMAP_JET))
+                cv2.imwrite(str(x)+"AccumMask.jpg",cv2.applyColorMap(np.uint8(maskImage*50),cv2.COLORMAP_JET))
             else:
                 print("skypping layer "+layerNames[x])
 
@@ -172,6 +179,10 @@ def main():
         image[markers == -1] = [0,0,255]
 
         cv2.imwrite("watershed.jpg",image)
+        cv2.imwrite("markers.jpg",cv2.applyColorMap(np.uint8(markers*50),cv2.COLORMAP_JET))
+
+        # now we should reconstruct the individual mask segmenations from the final marker
+
 
         i+=1
 

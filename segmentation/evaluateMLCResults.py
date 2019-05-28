@@ -103,9 +103,6 @@ class EvalMLCResults():
 
         #also, store as a csv file for clearPredictions
 
-
-
-
     def outputFullAgreementPercent(self,valid=True):
         countAgreement=0
         countTotal=0

@@ -16,23 +16,48 @@ import imagePatcherAnnotator as impa
 def addNewMaskLayer(newMask,mainMask):
     aux1=newMask.copy()
     aux2=mainMask.copy()
+    aux3=mainMask.copy()
 
     # First, the new unknown part touching background in the accumulated image is copied
     # things that were previously known but are unknown to me stay known
-    aux1[newMask==1]=2# now we only have unknown as zero and other things at least 2
-    aux1[mainMask==1]+=1 #now 1 contains the pixels that where 0 in new and 1 in main
-    mainMask[aux1==1]=0 # unknown + background is unknown
+    #aux1[newMask==1]=2# now we only have unknown as zero and other things at least 2
+    #aux1[mainMask==1]+=1 #now 1 contains the pixels that where 0 in new and 1 in main
+    #mainMask[aux1==1]=0 # unknown + background is unknown
+    #aux1=newMask.copy()
+    #aux1[aux2>1]=0 #erase everything not touching mainmask unknown or background
+    #aux1[aux1==1]=0 #erase also background
+    #mainMask=mainMask|aux1 # add the labels
 
-    # now copy all the new labels
+    #1) copy all the unknown (kills background and old lables)
+    mainMask[newMask==0]=0
 
-    #should do newLabel +unknown is new label?
-
-    aux1=newMask.copy()
-    aux1[aux2>1]=0 #erase everything not touching mainmask unknown or background
-    aux1[aux1==1]=0 #erase also background
+    #2) now add the labels (at some points double adding!)
+    aux1[aux1==1]=0 #erase the background
+    aux2[aux2==1]=0 #erase the background
     mainMask=mainMask|aux1 # add the labels
 
+    # 3) now, if there is a label in both, put unknown (kills new and old labels)
+    aux2[aux1>1]=1
+    aux2[aux3>1]+=1 #now 2 in aux2 marks labels in the two
+    mainMask[aux2==2]=0 #label plus label is unknown, correcting souble added layers
+
     return mainMask
+
+def buildBinaryMask(markers,firstLabel,lastLabel):
+    if firstLabel==0:firstLabel=2
+    aux=markers.copy()
+    #erase background
+    aux[markers==1]=0
+    #mark the pertinent labels
+    for x in range(firstLabel,lastLabel+1):
+        aux[markers==x]=1
+
+    #erase all other labels
+    aux[aux!=1]=255
+
+    #maybe make it 255 instead of 1?
+
+    return aux
 
 def main():
     # Take a mosaic, a csv file containing predictions for its labels and the patch size used for the annotations
@@ -114,21 +139,17 @@ def main():
     #kernel = np.ones((3,3),dtype=np.uint8)
     kernel = np.zeros((3,3),np.uint8)
     kernel[:]=255
-    #initialize mask accumulator
-
     for pref in imagePrefixes:
         layerList.append([])
+        #mask accumulator image
         maskImage=np.ones((shapeX,shapeY),dtype=np.uint8)
         firstLabel=0 #counter so labels from different masks have different labels
+        firstLabelList=[0]
         for x in range(len(layerNames)):
             if layerNames[x] in ["river","decidious","uncovered","evergreen"]:
                 print("starting "+layerNames[x])
-                #merge these mask with the ones before
-                #cv2.imwrite(str(x)+"before.jpg",layerList[i][x])
 
-                # also, try to refine the segmenation
-                # noise removal
-                #ret, thresh = cv2.threshold(layerList[i][x],0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
+                # Try to refine the segmenation
                 opening = cv2.morphologyEx(layerList[i][x],cv2.MORPH_OPEN,kernel, iterations = 2)
 
                 # sure background area
@@ -138,18 +159,10 @@ def main():
                 # Finding sure foreground area
                 dist_transform = cv2.distanceTransform(opening,cv2.DIST_L2,5)
                 ret, sure_fg = cv2.threshold(dist_transform,0.2*dist_transform.max(),255,0)
-                #iterations=350
-                #if layerNames[x]=="evergreen": iterations =200
-                #sure_fg = cv2.erode(layerList[i][x],kernel,iterations=iterations)
-                #cv2.imwrite(imageDir+pref+"dilatedLayer"+str(x)+".jpg",sure_fg)
 
                 # Finding unknown region
                 sure_fg = np.uint8(sure_fg)
                 unknown = cv2.subtract(sure_bg,sure_fg)
-
-                #cv2.imwrite(str(x)+"sf.jpg",sure_fg)
-                #cv2.imwrite(str(x)+"sb.jpg",sure_bg)
-                #cv2.imwrite(str(x)+"unk.jpg",unknown)
 
                 # Marker labelling
                 ret, markers = cv2.connectedComponents(sure_fg)
@@ -161,6 +174,7 @@ def main():
                 markers[markers==(firstLabel+1)]=1
 
                 firstLabel+=ret
+                firstLabelList.append(firstLabel)
                 # Now, mark the region of unknown with zero
                 markers[unknown==255] = 0
 
@@ -178,15 +192,20 @@ def main():
         markers = cv2.watershed(image,maskImage)
         image[markers == -1] = [0,0,255]
 
-        cv2.imwrite("watershed.jpg",image)
-        cv2.imwrite("markers.jpg",cv2.applyColorMap(np.uint8(markers*50),cv2.COLORMAP_JET))
+        cv2.imwrite(str(i)+"watershed.jpg",image)
+        cv2.imwrite(str(i)+"markers.jpg",cv2.applyColorMap(np.uint8(markers*50),cv2.COLORMAP_JET))
 
         # now we should reconstruct the individual mask segmenations from the final marker
+        print(" list Of first labels"+str(firstLabelList))
+
+        #now, make layer images, for every interval of layers, only include markers inside of it
+        for j in range(1,len(firstLabelList)):
+            im=buildBinaryMask(markers,firstLabelList[j-1],firstLabelList[j])
+            cv2.imwrite(str(i)+"and"+str(j-1)+"binaryMask.jpg",np.uint8(im))
 
 
         i+=1
 
-        sys.exit()
 
 
 

@@ -11,6 +11,7 @@ from fastai.vision import *
 
 class EvalMLCResults():
     def __init__(self,path,labelFileName,imageDir,outputFilePrefix,imageSuff=".jpg"):
+        print("init! "+path+" "+str(labelFileName)+" "+str(imageDir)+" "+str(outputFilePrefix))
         self.fileDict={}
         self.validFileDict={}
         self.predList=[]
@@ -19,6 +20,10 @@ class EvalMLCResults():
         self.imageDir=imageDir
         self.suffix=imageSuff
         self.outputFilePrefix=outputFilePrefix
+        self.usePretainedWeights=True
+
+    def pretrainedOK(self):self.usePretainedWeights=True
+    def noPretrained(self):self.usePretainedWeights=False
 
     def setModelFile(self,modelFile):
         self.modelFile=modelFile
@@ -42,23 +47,26 @@ class EvalMLCResults():
         for key, val in self.fileDict.items():
             val.pop()
 
-    def computePredictions(self,pretrainedModel=False,unfreeze=False,lr=0.01,compute=True):
+    def computePredictions(self,pretrainedModel=False,unfreeze=False,lr=0.01,compute=True,predict=True,modelPrefix=""):
 
         #set up and load model
         path = Config.data_path()/self.path
         path.mkdir(parents=True, exist_ok=True)
+
+        print("computing prediction "+str(self.path))
 
         df = pd.read_csv(self.path+self.labelFileName)
         df.head()
 
         tfms = get_transforms(flip_vert=True, max_lighting=0.1, max_zoom=1.05, max_warp=0.)
         np.random.seed(42)
+
         src = (ImageList.from_csv(path, self.labelFileName, folder=self.imageDir, suffix=self.suffix).split_by_rand_pct(0.2).label_from_df(label_delim=' '))
         data = (src.transform(tfms, size=128).databunch().normalize(imagenet_stats))
         arch = models.resnet50
         acc_02 = partial(accuracy_thresh, thresh=0.2)
         f_score = partial(fbeta, thresh=0.2)
-        learn = cnn_learner(data, arch, metrics=[acc_02, f_score])
+        learn = cnn_learner(data, arch, metrics=[acc_02, f_score],pretrained=self.usePretainedWeights)
         if pretrainedModel : learn.load(self.modelFile) # If we are starting with a pre-trained model, load it
 
         numEpochs=10
@@ -68,40 +76,88 @@ class EvalMLCResults():
         else:
             if compute: learn.fit_one_cycle(numEpochs, slice(lr))
 
-        saveFileName="treesRN50lr"+str(lr)
+        saveFileName=modelPrefix+"treesRN50lr"+str(lr)
         if unfreeze: saveFileName="UNF"+saveFileName
         if pretrainedModel : saveFileName='Pret'+self.modelFile+saveFileName
 
         if compute:learn.save(saveFileName)
         else: learn.load(saveFileName)
-        print("model loaded, now compute predictions ")
-        outputFileName=self.outputFilePrefix+saveFileName+".csv"
-        of=open(outputFileName,"w")
+        print("model loaded, now compute predictions? "+str(predict))
+        if(predict):
+            outputFileName=self.outputFilePrefix+saveFileName+".csv"
+            of=open(outputFileName,"w")
 
-        #now, go over the images in self.fileDict and complete the predictions
-        for key, val in self.fileDict.items():
+            #now, go over the images in self.fileDict and complete the predictions
+            # maybe this part should also be possible to turn off with a parameter
+            for key, val in self.fileDict.items():
+                # we might be missing applying the transforms here!
+                img = open_image(self.path+self.imageDir+"/"+key+self.suffix)
+                # maybe the threshold for prediction can be changed here?
+                pred_class,pred_idx,outputs =learn.predict(img)
+                val.append(Label(str(pred_class).split(";")))
+                #print(str(key)+" "+str(pred_class))
+                of.write(str(key)+" "+str(pred_class)+"\n")
+                of.flush()
+                #print (pred_class)
+
+            of.close()
+
+            # finally, store only the validation set in the validation dictionary
+            valid=data.valid_ds.x.items[:]
+            print("validation data ")
+            for x in valid:
+                aux=x.split("/")[-1].split(".")[0]
+                # now copy the correct labels on to the validation dictionary
+                self.validFileDict[aux]=self.fileDict[aux]
+                #print(self.validFileDict[aux])
+
+        #also, store as a csv file for clearPredictions
+
+    #receives a list of files and prints predictions for all of them into a file
+    def computePredictionsFileList(self,imageList,outFile,pretrainedModel=False,unfreeze=False,lr=0.01,modelPrefix=""):
+
+        compute=False
+
+        #set up and load model
+        path = Config.data_path()/self.path
+        path.mkdir(parents=True, exist_ok=True)
+
+        print("computing predictions for list of files ")
+
+        saveFileName=modelPrefix+"treesRN50lr"+str(lr)
+        if unfreeze: saveFileName="UNF"+saveFileName
+        if pretrainedModel : saveFileName='Pret'+self.modelFile+saveFileName
+
+        print("modelFile: "+saveFileName)
+
+        # dummy initialization
+        df = pd.read_csv(self.path+self.labelFileName)
+        df.head()
+        tfms = get_transforms(flip_vert=True, max_lighting=0.1, max_zoom=1.05, max_warp=0.)
+        np.random.seed(42)
+        src = (ImageList.from_csv(path, self.labelFileName, folder=self.imageDir, suffix=self.suffix).split_by_rand_pct(0.2).label_from_df(label_delim=' '))
+        data = (src.transform(tfms, size=128).databunch().normalize(imagenet_stats))
+        arch = models.resnet50
+        acc_02 = partial(accuracy_thresh, thresh=0.2)
+        f_score = partial(fbeta, thresh=0.2)
+        learn = cnn_learner(data, arch, metrics=[acc_02, f_score])
+        learn.load(saveFileName)
+
+        print("model loaded, now compute predictions ")
+        of=open(outFile,"w")
+
+        for im in imageList:
             # we might be missing applying the transforms here!
-            img = open_image(self.path+self.imageDir+"/"+key+self.suffix)
+            img = open_image(self.path+self.imageDir+"/"+im+self.suffix)
             # maybe the threshold for prediction can be changed here?
             pred_class,pred_idx,outputs =learn.predict(img)
-            val.append(Label(str(pred_class).split(";")))
-            #print(str(key)+" "+str(pred_class))
-            of.write(str(key)+" "+str(pred_class)+"\n")
+            #val.append(Label(str(pred_class).split(";")))
+            #print(str(im)+" "+str(pred_class))
+            of.write(str(im)+" "+str(pred_class)+"\n")
             of.flush()
             #print (pred_class)
 
         of.close()
-
-        # finally, store only the validation set in the validation dictionary
-        valid=data.valid_ds.x.items[:]
-        print("validation data ")
-        for x in valid:
-            aux=x.split("/")[-1].split(".")[0]
-            # now copy the correct labels on to the validation dictionary
-            self.validFileDict[aux]=self.fileDict[aux]
-            #print(self.validFileDict[aux])
-
-        #also, store as a csv file for clearPredictions
 
     def outputFullAgreementPercent(self,valid=True):
         countAgreement=0
@@ -226,20 +282,23 @@ def main():
     #lrValues=[0.1,0.2,0.3,0.4,0.5,0.01,0.02,0.03,0.04,0.05,0.001,0.002,0.003,0.004,0.005,0.0001,0.0002,0.0003,0.0004,0.0005,0.00001,0.00002,0.00003,0.00004,0.00005]
     #lrValues=[0.5,0.25,1,0.15,0.75,0.00001,0.00005,00000.5,00000.1]
     #modelNames=[None]
-    modelNames=[None,"PlanetRN50UNFFT","PlanetRN50FT"]
+    modelNames=["Random",None,"PlanetRN50UNFFT","PlanetRN50FT"]
     unfValues=[True,False]
     for lr in lrValues:
         for mod in modelNames:
             for unf in unfValues:
                 preComp=False
-                if not mod is None:
+                if not mod in ["Random",None]:
                     eval.setModelFile(mod)
                     preComp=True
 
                 print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ computing for lr "+str(lr)+" with model "+str(mod)+" and unfreeze "+str(unf))
 
                 try:
-                    compute=False
+                    compute=True
+                    if mod is "Random":
+                        eval.noPretrained()
+                        if unf == False:break
                     eval.computePredictions(preComp,unf,lr,compute)
 
                     print ("FULL AGREEMENT: ")
@@ -267,7 +326,8 @@ def main():
                     eval.clearPredictions()
                 except Exception as e:
                     print(" THERE WAS SOME EXCEPTION!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! "+str(e))
-                #clear predictions
+                #clear predictions, make sure we use pretrainedWeights by default
+                eval.pretrainedOK()
 
 if __name__== "__main__":
   main()

@@ -11,12 +11,67 @@ class resultFileProcesser():
         self.f2 = open(self.outFileName, "a")
         for line in self.f1:
             self.processLine(line)
-
+        self.flush()
 
     @abc.abstractmethod
     def  processLine(self,line):
-        " Method to process whatever is done in each experiment, not implemented in the mother class "
+        #" Method to process whatever is done in each experiment, not implemented in the mother class "
         return
+
+    @abc.abstractmethod
+    def flush(self):
+        "method to be run after all lines have been processed, to be implemented in the subclasses"
+        return
+
+class segmenterResultFileProcesser(resultFileProcesser):
+    NUMBER_STAGES=5 #including 2 for stats
+    def __init__(self,fileName1,fileName2):
+        print("model;LR;Unfreeze;Mosaic;Category;DICECM;DICEREF")
+        super().__init__(fileName1,fileName2)
+        self.restart()
+
+    def restart(self):
+        self.modelName=""
+        self.stage=0
+        self.diceList=[]
+        self.output=""
+    def mosaicLine(self,linePart):return "with prefix" in linePart
+    def layerLine(self,linePart):return "LAYER" in linePart
+    def modelLine(self,linePart):return "@@@@@@@@@" in linePart
+    def coarseLine(self,linePart):return "dice coarse" in linePart
+    def fineLine(self,linePart):return "dice refined" in linePart
+
+    def flush(self):
+        if self.output!="":
+            print(self.output)
+            self.f2.write(self.output+"\n")
+            self.restart()
+
+    def processLine(self,line):
+        # if we find an exception, restart
+        linePart=line[0:100]
+        #print(line)
+        #first, process stage changes
+        if "EXCEPTION" in linePart:self.restart()
+        elif self.modelLine(linePart):
+            self.flush()
+            listOfWords=line.split(" ")
+            self.output+=listOfWords[7]+";"+listOfWords[4]+";"+listOfWords[10].strip()
+        elif self.mosaicLine(linePart):
+            listOfWords=line.strip().split(" ")
+            self.output+=";"+listOfWords[3]
+        elif self.layerLine(linePart):
+            listOfWords=line.strip().split(" ")
+            self.output+=";"+listOfWords[1]
+        elif self.coarseLine(linePart):
+            listOfWords=line.strip().split(" ")
+            self.output+=";"+listOfWords[3][:6]+";"
+        elif self.fineLine(linePart):
+            listOfWords=line.strip().split(" ")
+            self.output+=listOfWords[3][:6]
+
+
+
 
 class TLresultFileProcesser(resultFileProcesser):
     NUMBER_STAGES=5 #including 2 for stats
@@ -32,6 +87,9 @@ class TLresultFileProcesser(resultFileProcesser):
         self.TAFP=0
         self.PA=0
         self.output=""
+
+    def flush(self):
+        pass
 
     def upStage(self):
         self.stage+=1
@@ -87,10 +145,15 @@ class TLresultFileProcesser(resultFileProcesser):
 
 
 
-def main():
-
-    rP=TLresultFileProcesser(sys.argv[1],sys.argv[2])
-    rP.run()
+def main(argv):
+    if int(argv[3])==0:
+        rP=TLresultFileProcesser(argv[1],argv[2])
+        rP.run()
+    elif int(argv[3])==1:
+        rP=segmenterResultFileProcesser(argv[1],argv[2])
+        rP.run()
+    else:
+        raise("Format exp results, incorrect type of experiment")
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)

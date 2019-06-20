@@ -3,6 +3,7 @@ import numpy as np
 import sys
 import imagePatcherAnnotator as impa
 import dice as dice
+import skimage.segmentation as seg
 
 def addNewMaskLayer(newMask,mainMask):
     aux1=newMask.copy()
@@ -48,7 +49,6 @@ def buildBinaryMask(markers,firstLabel,lastLabel):
 
     return aux
 
-def main():
 def main(argv):
     # Take a mosaic, a csv file containing predictions for its labels and the patch size used for the annotations
     # 1) Create trentative automatic mask images (all affected patches are black)
@@ -62,8 +62,6 @@ def main(argv):
     for i in range(len(layerNames)):layerDict[layerNames[i]]=i
 
     # Read parameters
-    patch_size = int(sys.argv[1])
-    csvFile=sys.argv[2]
     patch_size = int(argv[1])
     csvFile=argv[2]
     #imageDir, full path!
@@ -71,7 +69,6 @@ def main(argv):
 
     #read also all the prefixes of all the images that we have
     imagePrefixes=[]
-    for x in range(4,len(sys.argv)):imagePrefixes.append(sys.argv[x])
     for x in range(4,len(argv)):imagePrefixes.append(argv[x])
     imageDict={}
     for i in range(len(imagePrefixes)):imageDict[imagePrefixes[i]]=i
@@ -144,24 +141,15 @@ def main(argv):
             if layerNames[x] in ["river","decidious","uncovered","evergreen"]:
                 #print("starting "+layerNames[x])
 
-                #in the case of decidious trees, filter out the snow
-                #if layerNames[x]=="decidious":
-                if False:
-                    snowMask=ut.makeSnowMask(cv2.cvtColor(image[pref], cv2.COLOR_BGR2GRAY))
-                    coarseMask=ut.getSnowOutOfGeneratedMask(snowMask,layerList[i][x])
-                else:
-                    coarseMask=layerList[i][x]
-
                 # Try to refine the segmenation
-                opening = cv2.morphologyEx(coarseMask,cv2.MORPH_OPEN,kernel, iterations = 2)
+                opening = cv2.morphologyEx(layerList[i][x],cv2.MORPH_OPEN,kernel, iterations = 2)
 
-                # sure background area iterations was 10
-                sure_bg = cv2.dilate(opening,kernel,iterations=1)
+                # sure background area
+                sure_bg = cv2.dilate(opening,kernel,iterations=10)
 
-                # Finding sure foreground area dist_transform multiplier was 0.17
+                # Finding sure foreground area
                 dist_transform = cv2.distanceTransform(opening,cv2.DIST_L2,5)
-                ret, sure_fg = cv2.threshold(dist_transform,0.15*dist_transform.max(),255,0)
-                cv2.imwrite(outputDir+pref+"SUREFG"+str(layerNames[x])+".jpg",sure_fg)
+                ret, sure_fg = cv2.threshold(dist_transform,0.17*dist_transform.max(),255,0)
 
                 # Finding unknown region
                 sure_fg = np.uint8(sure_fg)
@@ -181,8 +169,7 @@ def main(argv):
                 # Now, mark the region of unknown with zero
                 markers[unknown==255] = 0
 
-                important=layerNames[x] in ["decidious","evergreen"]
-                maskImage=addNewMaskLayer(markers,maskImage,important)
+                maskImage=addNewMaskLayer(markers,maskImage)
 
                 cv2.imwrite(outputDir+pref+"CoarseMaskLayer"+str(layerNames[x])+".jpg",layerList[i][x])
                 #cv2.imwrite(outputDir+str(x)+"layerMask.jpg",cv2.applyColorMap(np.uint8(markers*50),cv2.COLORMAP_JET))
@@ -216,21 +203,10 @@ def main(argv):
             #cv2.imwrite(outputDir+pref+str(i)+str(j-1)+"coarse.jpg",coarseLayer)
             cv2.imwrite(outputDir+pref+str(layerNames[j-1])+"refined.jpg",refinedLayer)
             print(" LAYER "+layerNames[j-1])
-
             currentDice=dice.dice(coarseLayer,manualLayer )
             print("*******************************************dice coarse mask "+str(currentDice))
             currentDice=dice.dice(refinedLayer,manualLayer )
             print("*******************************************dice refined mask "+str(currentDice))
-
-            #experiments with taking out the snow mask, not used at the moment.
-            #if layerNames[j-1]=="decidious":
-            #    snowMask=ut.makeSnowMask(cv2.cvtColor(image[pref], cv2.COLOR_BGR2GRAY))
-            #    newRefinedLayer=ut.getSnowOutOfGeneratedMask(snowMask,refinedLayer)
-            #    newManualLayer=ut.getSnowOutOfMask(snowMask,manualLayer)
-            #    currentDice=dice.dice(refinedLayer,newManualLayer )
-                #print("*******************************************dice refined mask no snow "+str(currentDice))
-
-
         i+=1
 
 

@@ -36,26 +36,30 @@ def listPixels(image):
     return False
 
 
-def main():
+def main(argv,csvFileName=""):
 
     #hardcoded number of layers and names
     layerNames=["river","decidious","uncovered","evergreen","manmade"]
     #layerNames=["river","decidious","uncovered","evergreen"]
 
     # load the image
-    imagePrefix=sys.argv[1]
+    imagePrefix=argv[1]
     imageName=imagePrefix+".jpg"
-    csvFile=imagePrefix+".csv"
+    if (csvFileName==""):csvFile=imagePrefix+".csv"
+    else:csvFile=csvFileName
+
     f = open(csvFile, "a")
     print(imageName)
     image = cv2.imread(imageName,cv2.IMREAD_COLOR)
-    patch_size = int(sys.argv[2])
+    patch_size = int(argv[2])
     shapeX=image.shape[0]
     shapeY=image.shape[1]
     print(str(image.shape))
 
-    outputDir=sys.argv[3]
-    outputPrefix=sys.argv[4]
+    outputDir=argv[3]
+    outputPrefix=argv[4]
+
+    print("OUTPUTDIR "+outputDir)
 
     #print("image shape "+str(shapeX)+","+str(shapeY))
 
@@ -65,7 +69,7 @@ def main():
 
     print("steps "+str(numStepsX)+" "+str(numStepsY))
     count=0
-    f.write("image,tags")
+    if(argv[5]=="True"): f.write("image,tags")
 
     layerList=[]
     for x in range(0,len(layerNames)):
@@ -82,12 +86,12 @@ def main():
 
             # also check how many layers are non-empty in this patch
             layerString=""
-            for x in [1,3]:
+            for x in range(0,len(layerList)):
                 # check if the layer in this patch is empty
                 if layerList[x] is None :break
 
                 layer=layerList[x]
-                layerPatch=imagePatch(layer ,i*patch_size,j*patch_size,patch_size,True  )
+                layerPatch=imagePatch(layer ,i*patch_size,j*patch_size,patch_size,False  )
 
                 #cv2.imwrite("./wm1/patches/patch"+str(count)+"Layer"+str(x)+".jpg",layerPatch)
                 if( imageNotEmpty( layerPatch )):
@@ -96,7 +100,7 @@ def main():
 
             if(not layerString=="") :
                 outputImageName=outputDir+"/"+outputPrefix+"patch"+str(count)+".jpg"
-                #print(outputImageName)
+                #print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GOING TO WRITE IMAGE TO FILE "+outputImageName)
                 cv2.imwrite(outputImageName, imagePatch(image,i*patch_size,j*patch_size,patch_size) )
                 print("for patch "+str(count)+" string is "+layerString)
                 f.write("\n"+outputPrefix+"patch"+str(count)+","+layerString.strip())
@@ -107,4 +111,4 @@ def main():
 
 
 if __name__== "__main__":
-  main()
+  main(sys.argv)

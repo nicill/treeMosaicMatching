@@ -70,9 +70,6 @@ class segmenterResultFileProcesser(resultFileProcesser):
             listOfWords=line.strip().split(" ")
             self.output+=listOfWords[3][:6]
 
-
-
-
 class TLresultFileProcesser(resultFileProcesser):
     NUMBER_STAGES=5 #including 2 for stats
     def __init__(self,fileName1,fileName2):
@@ -112,11 +109,12 @@ class TLresultFileProcesser(resultFileProcesser):
     def processLine(self,line):
         # if we find an exception, restart
         linePart=line[0:100]
-        #print(line)
+        #print("LINE! "+line)
         #first, process stage changes
         if "EXCEPTION" in linePart:self.restart()
         elif "computing" in linePart:
             listOfWords=line.split(" ")
+            #print(str(listOfWords)+" "+str(len(listOfWords)))
             self.output+=listOfWords[7]+";"+listOfWords[4]+";"+listOfWords[10].strip()
         elif TLresultFileProcesser.stageChange(linePart) :
             #print("yelou "+linePart+" "+str(self.stage))
@@ -143,7 +141,52 @@ class TLresultFileProcesser(resultFileProcesser):
                 self.f2.write(self.output+"\n")
                 self.restart()
 
+class UnetResultFileProcesser(resultFileProcesser):
+    NUMBER_STAGES=7
+    def __init__(self,fileName1,fileName2):
+        print("LR;deciduous;evergreen")
+        super().__init__(fileName1,fileName2)
+        self.restart()
 
+    def restart(self):
+        self.modelName=""
+        self.stage=0
+        self.output=""
+
+    def flush(self):
+        pass
+
+    def upStage(self):
+        self.stage+=1
+        #print("UP! "+str(self.stage)+" "+self.output)
+
+
+    def lastStage(self): return self.stage==self.NUMBER_STAGES
+
+    def processLine(self,line):
+        # if we find an exception, restart
+        linePart=line[0:100]
+        #print("LINE! "+line)
+        #first, process stage changes
+        if "EXCEPTION" in linePart:self.restart()
+        elif "Starting with LR" in linePart:
+            listOfWords=line.split(" ")
+            #print(str(listOfWords)+" "+str(len(listOfWords)))
+            self.output+=listOfWords[3].strip()
+        elif "dice Unet decidious" in linePart:
+            listOfWords=line.split(" ")
+            #print(str(listOfWords)+" "+str(len(listOfWords)))
+            self.output+=";"+listOfWords[3].strip()
+        elif "dice Unet evergreen" in linePart:
+            listOfWords=line.split(" ")
+            #print(str(listOfWords)+" "+str(len(listOfWords)))
+            self.output+=";"+listOfWords[3].strip()
+            self.upStage()
+        #check if we need to restart
+        if(self.lastStage()):
+                print(self.output)
+                self.f2.write(self.output+"\n")
+                self.restart()
 
 def main(argv):
     if int(argv[3])==0:
@@ -152,8 +195,11 @@ def main(argv):
     elif int(argv[3])==1:
         rP=segmenterResultFileProcesser(argv[1],argv[2])
         rP.run()
+    elif int(argv[3])==2:
+        rP=UnetResultFileProcesser(argv[1],argv[2])
+        rP.run()
     else:
-        raise("Format exp results, incorrect type of experiment")
+        raise ValueError("Format exp results, incorrect type of experiment")
 
 if __name__ == '__main__':
     main(sys.argv)

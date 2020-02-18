@@ -41,7 +41,7 @@ def listFromBinary(fileName):
         #print(" listFromBinary, refined  "+str(len(newCentroids)))
         #print(newCentroids)
 
-        return newCentroids
+        return newCentroids[1:]
 
 def hausdorfDistance(u,v): # computes Hausdorf distance between two lists of point
     if len(u)==0 or len(v)==0: return -1

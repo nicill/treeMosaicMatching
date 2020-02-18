@@ -1,0 +1,9 @@
+# this file contains an example of the input parameters to transform a mosaic or sequence of mosaics into patches 
+#patchsize 
+patchSize 250
+# for each mosaic to be considered, include folder prefix, mosaic file name, number of layers and  as well as file names finaly, also include output folder name
+mosaic /media/yago/workDrive/Experiments/forests/segmentation/CF1/ CF1.jpg 4 blackLocust CF1layer0.jpg soil CF1layer1.jpg otherTrees CF1layer2.jpg manmade CF1layer3.jpg patches
+
+mosaic /media/yago/workDrive/Experiments/forests/segmentation/CF1/ CF1B.jpg 4 blackLocust CF1layer0.jpg soil CF1layer1.jpg otherTrees CF1layer2.jpg manmade CF1layer3.jpg patches
+
+csvFileName //media/yago/workDrive/Experiments/forests/segmentation/CF1/coastalForest.csv

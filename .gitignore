@@ -1,0 +1,6 @@
+
+data/
+
+segmentation/__pycache__/
+
+treeDetection/__pycache__/
